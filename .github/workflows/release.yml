@@ -1,0 +1,97 @@
+name: Release Desktop Installers
+
+# Builds platform-specific installers (.dmg for macOS, .msi/.exe for Windows)
+# on their native runners. Cross-compiling Tauri + native Node addons like
+# better-sqlite3 across operating systems is unreliable, so we let each OS
+# produce its own bundle and collect them together as release artifacts.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            os: macos-14
+            rust_target: aarch64-apple-darwin
+          - name: macos-x64
+            os: macos-13
+            rust_target: x86_64-apple-darwin
+          - name: windows-x64
+            os: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Generate desktop icons
+        run: npm run desktop:icons
+
+      - name: Build & package local server binary
+        run: npm run server:binary
+
+      - name: Build desktop installer
+        run: npm -w @agbook/desktop run build
+
+      - name: Collect bundles
+        shell: bash
+        run: |
+          mkdir -p dist-release
+          src="apps/desktop/src-tauri/target/release/bundle"
+          if [ -d "$src/dmg" ]; then cp -v "$src/dmg"/*.dmg dist-release/ || true; fi
+          if [ -d "$src/msi" ]; then cp -v "$src/msi"/*.msi dist-release/ || true; fi
+          if [ -d "$src/nsis" ]; then cp -v "$src/nsis"/*.exe dist-release/ || true; fi
+          ls -la dist-release
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: agbook-${{ matrix.name }}
+          path: dist-release/*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Attach installers to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: all-artifacts/**/*
+          generate_release_notes: true

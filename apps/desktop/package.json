@@ -1,0 +1,19 @@
+{
+  "name": "@agbook/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "icon:source": "node scripts/make-source-icon.mjs",
+    "icon:generate": "tauri icon src-tauri/icons/source.png",
+    "icon:all": "npm run icon:source && npm run icon:generate",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.1.1"
+  }
+}

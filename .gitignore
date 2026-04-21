@@ -1,0 +1,25 @@
+node_modules
+dist
+dist-bundle
+dist-release
+build
+.DS_Store
+*.log
+*.tsbuildinfo
+.env
+.env.*
+data/
+
+# Editor / IDE metadata
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Tauri / Rust build artifacts
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
+# Packaged sidecar binaries are regenerated on each `npm run server:binary`
+# and should never be committed — they are large and host-specific.
+apps/desktop/src-tauri/binaries/agbook-server-*
