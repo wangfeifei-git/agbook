@@ -1,4 +1,5 @@
 node_modules
+installers
 dist
 dist-bundle
 dist-release
@@ -9,6 +10,9 @@ build
 .env
 .env.*
 data/
+
+# 本地规划 / 方案草稿（不公开）
+planning/
 
 # Editor / IDE metadata
 .idea/

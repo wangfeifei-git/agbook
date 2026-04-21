@@ -1,14 +1,6 @@
 # agbook
 
-本地优先的小说创作 AI 工作台。围绕 **小说管理 / 设定 / 大纲 / 章节计划 / 章节生成规则 / 审核修订** 的完整创作流程，兼容 OpenAI 风格的模型接入。
-
-> 方案文档：
-> - [docs/novel-agent-plan.md](./docs/novel-agent-plan.md)
-> - [docs/mvp-feature-list.md](./docs/mvp-feature-list.md)
-> - [docs/product-structure-draft.md](./docs/product-structure-draft.md)
-> - [docs/technical-architecture-draft.md](./docs/technical-architecture-draft.md)
-
----
+小说创作 AI 工作台。围绕 **小说管理 / 设定 / 大纲 / 章节计划 / 章节生成规则 / 审核修订** 的完整创作流程，兼容 OpenAI 风格的模型接入。
 
 ## 技术栈
 
@@ -35,7 +27,6 @@ agbook/
         src/         # Rust 主进程：启动 sidecar / 回收子进程
   scripts/           # 构建辅助脚本（bundle-server / pkg-server）
   data/              # 开发模式下的数据目录（SQLite + 项目文件）
-  docs/              # 方案与技术文档
 ```
 
 ## 环境准备（仅首次）
@@ -118,10 +109,110 @@ apps/desktop/src-tauri/target/release/bundle/
 
 ### 跨平台构建
 
-从 macOS 本地构建 Windows 安装包在带原生模块时极不可靠，生产上走 **GitHub Actions**：
+本地只出当前平台的包。带 `better-sqlite3` 这类原生模块在 macOS 上交叉编译出 Windows 安装包几乎不可行，生产上一律走 **GitHub Actions**（见下一节）。
 
-- `.github/workflows/release.yml`：推 `v*` tag 时在 `macos-14`（arm64）、`macos-13`（x64）、`windows-latest` 三个 runner 上各自跑 `npm run desktop:build`，最后把 `.dmg` / `.msi` 收集进 GitHub Release
-- 本地只管自己当前平台的包即可
+## 通过 GitHub Actions 发版
+
+`.github/workflows/release.yml` 会在推 `v*` tag 时触发，在对应平台的 runner 上各自跑 `npm run desktop:build`，把产物上传为 Artifacts 并挂到 GitHub Release。
+
+### 一次性准备
+
+1. 在 GitHub 建仓库并推代码（首次）：
+   ```bash
+   git init
+   git add -A
+   git commit -m "feat: initial commit"
+   git branch -M main
+   git remote add origin https://github.com/<你的用户名>/agbook.git
+   git push -u origin main
+   ```
+2. 让本地终端能调 GitHub（推荐 `gh` CLI，一次授权走遍 `git push` / `gh release download`）：
+   ```bash
+   brew install gh         # 若未安装
+   gh auth login           # 选 GitHub.com → HTTPS → Yes → Login with a web browser
+   ```
+
+### 发版操作
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+之后：
+
+- 在 <https://github.com/你的用户名/agbook/actions> 看实时进度，或 `gh run watch`
+- Mac ARM 约 2–3 分钟（Rust cache 命中），Windows 约 5–9 分钟
+- Release 页：<https://github.com/你的用户名/agbook/releases/tag/v0.1.0>
+
+### 把产物拉回本地
+
+```bash
+gh release download v0.1.0 --dir installers
+```
+
+或浏览器：Release 页 → `Assets` → 逐个点下载。
+
+产物清单：
+
+| 文件 | 平台 | 用途 |
+|---|---|---|
+| `agbook_<ver>_aarch64.dmg` | macOS Apple Silicon | 双击 → 拖进 Applications |
+| `agbook_<ver>_x64_en-US.msi` | Windows | MSI 静默部署 / IT 安装 |
+| `agbook_<ver>_x64-setup.exe` | Windows | NSIS 向导安装 |
+
+> 当前安装包**未做代码签名**。macOS 首次打开会提示"未知开发者"，右键 → 打开 → 同意一次即可；Windows 可能弹 SmartScreen，点"更多信息 → 仍要运行"。正式分发前需要申请 Apple Developer ID + Windows Authenticode 证书再加签。
+
+### Runner 矩阵说明
+
+```yaml
+matrix:
+  include:
+    - name: macos-arm64    # macos-14，原生 ARM
+    - name: windows-x64    # windows-latest，x86_64 MSVC
+    # - name: macos-x64    # macos-13 (Intel Mac)：免费账号排队严重，默认注释掉
+```
+
+Intel Mac runner 在 GitHub 免费账号上常排队 20–60 分钟，所以默认只出 ARM Mac + Windows 两份。需要 Intel Mac 包时把 matrix 里那三行取消注释即可。
+
+## 已知坑 / 踩过的雷
+
+便于以后再碰到同类问题能快速定位。
+
+### 1. Windows 上 Node 拒绝直接 spawn `.cmd` 文件
+
+CVE-2024-27980（Node 20.17+）后，`child_process.spawnSync` 不再直接执行 `.cmd` / `.bat`。`scripts/pkg-server.mjs` 里对 `prebuild-install.cmd` / `npm.cmd` 的调用统一加了：
+
+```js
+const spawnOpts = { stdio: 'inherit', shell: process.platform === 'win32' };
+```
+
+以后脚本里新增任何 `spawnSync` 调用都要跟上这个习惯。
+
+### 2. `better-sqlite3` 原生 addon ABI 必须和目标 Node 对齐
+
+- 本地 `npm install` 装的是宿主 Node 的 ABI（如 Node 22 = `NODE_MODULE_VERSION 127`，Node 25 = `141`）
+- `@yao-pkg/pkg` 内嵌的是 Node 20 = `115`
+- 如果不处理，pkg 出的二进制启动就 `ERR_DLOPEN_FAILED`
+
+`scripts/pkg-server.mjs` 的处理流程：
+
+1. 打包前：`prebuild-install --target=20.18.0 --force` 把 `.node` 换成 Node 20 ABI
+2. pkg 执行：pkg 把 Node 20 ABI 的 `.node` 嵌进二进制
+3. 打包后：再 `prebuild-install --target=<宿主 Node 版本>`，失败则 `npm rebuild better-sqlite3` 从源编译，恢复本地 dev 可用
+
+所以每次 `npm run server:binary` 后本地 `npm run dev` 还能跑，但会有一次短编译。
+
+### 3. `.gitignore` 必须保留的文件
+
+早期版本的 `apps/desktop/.gitignore` 把 Tauri 主图标和 `Cargo.lock` 一起 ignore 了，CI 一上去就挂（`tauri.conf.json` 里引用的图标找不到、依赖版本漂移）。现状：
+
+- **必须提交**：`src-tauri/icons/{32x32,128x128,128x128@2x,icon}.{png,icns,ico}`、`src-tauri/Cargo.lock`
+- **不提交**：`src-tauri/target/`、`src-tauri/gen/`、`src-tauri/binaries/agbook-server-*`、`src-tauri/icons/source.png`
+
+### 4. 前端在 Tauri 窗口里不能用相对 `/api/...`
+
+Tauri v2 的 webview 原点是 `tauri://localhost`（macOS/Linux）或 `http://tauri.localhost`（Windows），跟 sidecar 的 `127.0.0.1:8787` 不同源。`apps/web/src/api.ts` 里根据 `window.location.protocol` 自动补绝对地址，本地浏览器 dev 下继续走 Vite 代理不变。
 
 ## 首次使用
 
