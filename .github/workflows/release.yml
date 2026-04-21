@@ -20,12 +20,15 @@ jobs:
           - name: macos-arm64
             os: macos-14
             rust_target: aarch64-apple-darwin
-          - name: macos-x64
-            os: macos-13
-            rust_target: x86_64-apple-darwin
           - name: windows-x64
             os: windows-latest
             rust_target: x86_64-pc-windows-msvc
+          # Intel Mac (macos-13) runners have very long queue times on the
+          # free plan; re-enable this entry when an x86_64 macOS build is
+          # specifically needed.
+          # - name: macos-x64
+          #   os: macos-13
+          #   rust_target: x86_64-apple-darwin
 
     runs-on: ${{ matrix.os }}
 
