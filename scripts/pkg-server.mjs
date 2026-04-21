@@ -105,6 +105,11 @@ console.log(`[pkg-server] pkg target        = ${pkgTarget}`);
 console.log(`[pkg-server] prebuild runtime  = node ${pkgNodeVersion} (${prebuildPlatform}/${prebuildArch})`);
 console.log(`[pkg-server] output binary     = ${path.relative(repoRoot, outputPath)}`);
 
+// Node on Windows refuses to spawn `.cmd` shims directly (CVE-2024-27980
+// mitigation); every child-process call below therefore goes through the
+// shell. On POSIX the flag is harmless.
+const spawnOpts = { stdio: 'inherit', cwd: bsqlDir, shell: process.platform === 'win32' };
+
 const prebuildResult = spawnSync(
   prebuildBin,
   [
@@ -114,7 +119,7 @@ const prebuildResult = spawnSync(
     '--platform', prebuildPlatform,
     '--force',
   ],
-  { stdio: 'inherit', cwd: bsqlDir }
+  spawnOpts
 );
 
 if (prebuildResult.status !== 0) {
@@ -133,7 +138,7 @@ const result = spawnSync(
     '--compress', 'GZip',
     '--config', path.join(serverDir, 'package.json'),
   ],
-  { stdio: 'inherit', cwd: repoRoot }
+  { stdio: 'inherit', cwd: repoRoot, shell: process.platform === 'win32' }
 );
 
 if (result.status !== 0) {
@@ -170,7 +175,7 @@ const tryPrebuild = spawnSync(
     '--platform', hostPlatform,
     '--force',
   ],
-  { stdio: 'inherit', cwd: bsqlDir }
+  spawnOpts
 );
 
 if (tryPrebuild.status !== 0) {
@@ -179,6 +184,7 @@ if (tryPrebuild.status !== 0) {
   const rebuild = spawnSync(npmBin, ['rebuild', 'better-sqlite3'], {
     stdio: 'inherit',
     cwd: repoRoot,
+    shell: process.platform === 'win32',
   });
   if (rebuild.status !== 0) {
     console.warn(
