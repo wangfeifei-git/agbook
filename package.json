@@ -1,7 +1,7 @@
 {
   "name": "agbook",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI-powered local novel-writing workstation (本地小说创作 AI 工作台)",
   "workspaces": [
     "apps/*"
