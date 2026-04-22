@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
+import { useConfirm } from '../components/Confirm';
 import type { SettingItem, SettingType } from '../types';
 
 const TYPES: { value: SettingType; label: string }[] = [
@@ -18,6 +19,7 @@ const TYPES: { value: SettingType; label: string }[] = [
 export function SettingsPage() {
   const { novelId } = useParams();
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data: items = [] } = useQuery({
     queryKey: ['settings', novelId],
     queryFn: () => api.listSettings(novelId!),
@@ -111,7 +113,17 @@ export function SettingsPage() {
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{item.name}</span>
                     <button className="text-xs text-ink-400 hover:text-red-400"
-                      onClick={e => { e.stopPropagation(); if (confirm(`删除「${item.name}」？`)) deleteMut.mutate(item.id); }}>
+                      onClick={async e => {
+                        e.stopPropagation();
+                        if (await confirm({
+                          title: '删除设定',
+                          message: `确定删除「${item.name}」？此操作不可撤销。`,
+                          confirmText: '删除',
+                          tone: 'danger',
+                        })) {
+                          deleteMut.mutate(item.id);
+                        }
+                      }}>
                       删除
                     </button>
                   </div>

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/Confirm';
 import type { ChapterPlan, ChapterRuleSet } from '../types';
 
 const STATUS_LABEL: Record<ChapterPlan['status'], string> = {
@@ -16,6 +17,7 @@ const STATUS_LABEL: Record<ChapterPlan['status'], string> = {
 export function ChapterPlansPage() {
   const { novelId } = useParams();
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data: plans = [] } = useQuery({
     queryKey: ['plans', novelId],
     queryFn: () => api.listPlans(novelId!),
@@ -99,7 +101,16 @@ export function ChapterPlansPage() {
             plan={selected}
             outlineOptions={outline}
             onSave={data => updatePlan(qc, novelId!, selected.id, data)}
-            onDelete={() => { if (confirm('删除该章节计划？')) deleteMut.mutate(selected.id); }}
+            onDelete={async () => {
+              if (await confirm({
+                title: '删除章节计划',
+                message: `确定删除「第 ${selected.chapterNumber} 章 · ${selected.title || '未命名'}」？\n该章节的所有草稿版本、审核记录、摘要都会被一并删除。`,
+                confirmText: '删除',
+                tone: 'danger',
+              })) {
+                deleteMut.mutate(selected.id);
+              }
+            }}
           />
         ) : (
           <div className="p-8 text-ink-500">左侧没有可编辑的章节计划。</div>

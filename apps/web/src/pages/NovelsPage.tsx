@@ -2,10 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { useConfirm } from '../components/Confirm';
 
 export function NovelsPage() {
   const qc = useQueryClient();
   const nav = useNavigate();
+  const confirm = useConfirm();
   const { data: novels = [], isLoading } = useQuery({
     queryKey: ['novels'],
     queryFn: api.listNovels,
@@ -82,7 +84,16 @@ export function NovelsPage() {
                   {n.title}
                 </Link>
                 <button className="text-xs text-ink-400 hover:text-red-400"
-                  onClick={() => { if (confirm(`删除「${n.title}」？`)) deleteMut.mutate(n.id); }}>
+                  onClick={async () => {
+                    if (await confirm({
+                      title: '删除小说',
+                      message: `确定删除「${n.title}」吗？\n该小说下的所有设定、大纲、章节、草稿版本、审核记录等都会被一并物理删除，且不可恢复。`,
+                      confirmText: '删除',
+                      tone: 'danger',
+                    })) {
+                      deleteMut.mutate(n.id);
+                    }
+                  }}>
                   删除
                 </button>
               </div>

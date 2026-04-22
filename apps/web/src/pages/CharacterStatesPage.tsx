@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/Confirm';
 import type { CharacterState } from '../types';
 
 interface FormState {
@@ -42,6 +43,7 @@ export function CharacterStatesPage() {
   const { novelId } = useParams();
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<CharacterState | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
@@ -160,7 +162,16 @@ export function CharacterStatesPage() {
                     <div className="flex flex-col gap-1 shrink-0">
                       <button className="btn btn-ghost text-xs" onClick={() => startEdit(c)}>编辑</button>
                       <button className="btn btn-danger text-xs"
-                        onClick={() => { if (confirm(`删除角色状态「${c.name}」？`)) deleteMut.mutate(c.id); }}>
+                        onClick={async () => {
+                          if (await confirm({
+                            title: '删除角色状态',
+                            message: `确定删除角色状态「${c.name}」？`,
+                            confirmText: '删除',
+                            tone: 'danger',
+                          })) {
+                            deleteMut.mutate(c.id);
+                          }
+                        }}>
                         删除
                       </button>
                     </div>

@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { ContextOverridesPanel } from '../components/ContextOverridesPanel';
 import { useToast } from '../components/Toast';
+import { useConfirm, type ConfirmOptions } from '../components/Confirm';
 import type { ContextOverrides, DraftVersion, GenerateResult, ReviewIssue } from '../types';
 
 const SEVERITY_COLOR: Record<string, string> = {
@@ -38,6 +39,7 @@ export function DraftPage() {
   const { novelId, planId } = useParams();
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
   const [tab, setTab] = useState<'preview' | 'review' | 'summary' | 'config' | 'versions'>('preview');
   const [lastResult, setLastResult] = useState<GenerateResult | null>(null);
   const [content, setContent] = useState('');
@@ -427,8 +429,13 @@ export function DraftPage() {
                   {summaryData?.summary && (
                     <button className="btn btn-ghost text-xs text-red-300 hover:text-red-400"
                       disabled={deleteSummariesMut.isPending}
-                      onClick={() => {
-                        if (confirm('删除本章所有摘要记录？生成过程依赖的是最近一条，其余历史记录可安全清理。')) {
+                      onClick={async () => {
+                        if (await confirm({
+                          title: '清空本章摘要',
+                          message: '删除本章所有摘要记录？生成过程仅依赖最近一条，其余历史记录可安全清理。',
+                          confirmText: '清空',
+                          tone: 'danger',
+                        })) {
                           deleteSummariesMut.mutate();
                         }
                       }}>
@@ -530,8 +537,13 @@ export function DraftPage() {
                     {reviews.length > 3 && (
                       <button className="btn btn-ghost text-[10px] px-2 py-0.5 text-ink-400 hover:text-red-400"
                         disabled={pruneReviewsMut.isPending}
-                        onClick={() => {
-                          if (confirm(`仅保留最近 3 条审核记录，删除其余 ${reviews.length - 3} 条？`)) {
+                        onClick={async () => {
+                          if (await confirm({
+                            title: '清理审核历史',
+                            message: `仅保留最近 3 条审核记录，删除其余 ${reviews.length - 3} 条？`,
+                            confirmText: '清理',
+                            tone: 'danger',
+                          })) {
                             pruneReviewsMut.mutate(3);
                           }
                         }}>
@@ -547,8 +559,15 @@ export function DraftPage() {
                         </span>
                         <button className="text-ink-500 hover:text-red-400 shrink-0"
                           disabled={deleteReviewMut.isPending}
-                          onClick={() => {
-                            if (confirm('删除这条审核记录？')) deleteReviewMut.mutate(r.id);
+                          onClick={async () => {
+                            if (await confirm({
+                              title: '删除审核记录',
+                              message: '确定删除这条审核记录？',
+                              confirmText: '删除',
+                              tone: 'danger',
+                            })) {
+                              deleteReviewMut.mutate(r.id);
+                            }
                           }}>
                           删除
                         </button>
@@ -566,6 +585,7 @@ export function DraftPage() {
               onPrune={(keep) => pruneVersionsMut.mutate(keep)}
               deletingId={deleteVersionMut.isPending ? (deleteVersionMut.variables as string) : null}
               isPruning={pruneVersionsMut.isPending}
+              confirm={confirm}
             />
           )}
         </div>
@@ -581,6 +601,7 @@ function VersionsPanel({
   onPrune,
   deletingId,
   isPruning,
+  confirm,
 }: {
   versions: DraftVersion[];
   currentVersionId: string | null;
@@ -588,6 +609,7 @@ function VersionsPanel({
   onPrune: (keep: number) => void;
   deletingId: string | null;
   isPruning: boolean;
+  confirm: (opts: string | ConfirmOptions) => Promise<boolean>;
 }) {
   if (versions.length === 0) {
     return <div className="text-ink-500 text-sm">尚无草稿版本。每次「生成本章」或手动保存都会产生一个新版本。</div>;
@@ -600,8 +622,13 @@ function VersionsPanel({
         {excess > 0 && (
           <button className="btn btn-ghost text-[10px] px-2 py-0.5 text-ink-400 hover:text-red-400"
             disabled={isPruning}
-            onClick={() => {
-              if (confirm(`仅保留最近 5 个版本（当前版本不会被删），清理其余 ${excess} 个？\n\n注：每个历史版本都保存了完整章节正文，章节越多冗余占用越大。`)) {
+            onClick={async () => {
+              if (await confirm({
+                title: '清理历史版本',
+                message: `仅保留最近 5 个版本（当前版本不会被删），清理其余 ${excess} 个？\n\n注：每个历史版本都保存了完整章节正文，章节越多冗余占用越大。`,
+                confirmText: '清理',
+                tone: 'danger',
+              })) {
                 onPrune(5);
               }
             }}>
@@ -630,11 +657,18 @@ function VersionsPanel({
               <button className="text-ink-500 hover:text-red-400 shrink-0"
                 disabled={deletingId === v.id}
                 title={isCurrent ? '删除当前版本后，将自动回退到更早的一个版本' : '删除此历史版本'}
-                onClick={() => {
+                onClick={async () => {
                   const msg = isCurrent
                     ? '此版本是当前显示版本。删除后会自动回退到更早的版本。确认删除？'
                     : `删除 v${v.versionNumber}？`;
-                  if (confirm(msg)) onDelete(v.id);
+                  if (await confirm({
+                    title: '删除版本',
+                    message: msg,
+                    confirmText: '删除',
+                    tone: 'danger',
+                  })) {
+                    onDelete(v.id);
+                  }
                 }}>
                 {deletingId === v.id ? '…' : '删除'}
               </button>

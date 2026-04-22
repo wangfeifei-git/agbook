@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/Confirm';
 
 const TABLE_LABELS: Record<string, string> = {
   novels: '小说',
@@ -34,6 +35,7 @@ function formatBytes(n: number): string {
 export function MaintenancePage() {
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
   const [versionKeep, setVersionKeep] = useState(5);
   const [reviewKeep, setReviewKeep] = useState(3);
 
@@ -141,8 +143,13 @@ export function MaintenancePage() {
               <span className="text-sm text-ink-300">个版本</span>
               <button className="btn btn-danger ml-auto"
                 disabled={pruneVersionsMut.isPending}
-                onClick={() => {
-                  if (confirm(`将清理所有章节的草稿历史，仅保留每章最近 ${versionKeep} 个版本（当前显示版本始终保留）。确认执行？`)) {
+                onClick={async () => {
+                  if (await confirm({
+                    title: '清理草稿历史',
+                    message: `将清理所有章节的草稿历史，仅保留每章最近 ${versionKeep} 个版本（当前显示版本始终保留）。确认执行？`,
+                    confirmText: '执行清理',
+                    tone: 'danger',
+                  })) {
                     pruneVersionsMut.mutate(versionKeep);
                   }
                 }}>
@@ -165,11 +172,18 @@ export function MaintenancePage() {
               <span className="text-sm text-ink-300">条报告</span>
               <button className="btn btn-danger ml-auto"
                 disabled={pruneReviewsMut.isPending}
-                onClick={() => {
+                onClick={async () => {
                   const msg = reviewKeep === 0
                     ? '将清空所有章节的审核历史报告。确认？'
                     : `每章保留最近 ${reviewKeep} 条审核报告，删除其余。确认执行？`;
-                  if (confirm(msg)) pruneReviewsMut.mutate(reviewKeep);
+                  if (await confirm({
+                    title: '清理审核历史',
+                    message: msg,
+                    confirmText: '执行清理',
+                    tone: 'danger',
+                  })) {
+                    pruneReviewsMut.mutate(reviewKeep);
+                  }
                 }}>
                 {pruneReviewsMut.isPending ? '清理中…' : '执行清理'}
               </button>

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '../components/Confirm';
 import type {
   NarrativeThread, ThreadConfidence, ThreadKind, ThreadStatus,
 } from '../types';
@@ -48,6 +49,7 @@ export function ThreadsPage() {
   const { novelId } = useParams();
   const qc = useQueryClient();
   const toast = useToast();
+  const confirm = useConfirm();
   const [filter, setFilter] = useState<ThreadStatus | 'all'>('active');
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<NarrativeThread | null>(null);
@@ -213,7 +215,16 @@ export function ThreadsPage() {
                       )}
                       <button className="btn btn-ghost text-xs" onClick={() => startEdit(t)}>编辑</button>
                       <button className="btn btn-danger text-xs"
-                        onClick={() => { if (confirm(`删除伏笔「${t.label}」？`)) deleteMut.mutate(t.id); }}>
+                        onClick={async () => {
+                          if (await confirm({
+                            title: '删除伏笔',
+                            message: `确定删除伏笔「${t.label}」？`,
+                            confirmText: '删除',
+                            tone: 'danger',
+                          })) {
+                            deleteMut.mutate(t.id);
+                          }
+                        }}>
                         删除
                       </button>
                     </div>

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
+import { useConfirm } from '../components/Confirm';
 import type { OutlineLevel, OutlineNode } from '../types';
 
 const LEVELS: { value: OutlineLevel; label: string }[] = [
@@ -37,6 +38,7 @@ function buildTree(nodes: OutlineNode[]): TreeNode[] {
 export function OutlinePage() {
   const { novelId } = useParams();
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data: nodes = [] } = useQuery({
     queryKey: ['outline', novelId],
     queryFn: () => api.listOutline(novelId!),
@@ -126,7 +128,16 @@ export function OutlinePage() {
         {selected ? (
           <EditPanel node={selected}
             onSave={data => updateMut.mutate(data)}
-            onDelete={() => { if (confirm(`删除「${selected.title}」？（含所有子节点）`)) deleteMut.mutate(selected.id); }}
+            onDelete={async () => {
+              if (await confirm({
+                title: '删除大纲节点',
+                message: `确定删除「${selected.title}」？\n该节点及其所有子节点都会被物理删除，且不可恢复。`,
+                confirmText: '删除',
+                tone: 'danger',
+              })) {
+                deleteMut.mutate(selected.id);
+              }
+            }}
             onCreateChild={() => openCreateChild(selected)}
           />
         ) : (

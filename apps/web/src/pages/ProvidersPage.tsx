@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api';
+import { useConfirm } from '../components/Confirm';
 import type { ModelProvider, ProviderPurpose } from '../types';
 
 const PURPOSE_LABEL: Record<ProviderPurpose, string> = {
@@ -10,6 +11,7 @@ const PURPOSE_LABEL: Record<ProviderPurpose, string> = {
 
 export function ProvidersPage() {
   const qc = useQueryClient();
+  const confirm = useConfirm();
   const { data: providers = [] } = useQuery({
     queryKey: ['providers'],
     queryFn: api.listProviders,
@@ -122,7 +124,16 @@ export function ProvidersPage() {
                         onClick={() => testMut.mutate(p.id)}>测试</button>
                       <button className="btn btn-ghost text-xs" onClick={() => startEdit(p)}>编辑</button>
                       <button className="btn btn-danger text-xs"
-                        onClick={() => { if (confirm(`删除 Provider「${p.name}」？`)) deleteMut.mutate(p.id); }}>
+                        onClick={async () => {
+                          if (await confirm({
+                            title: '删除 Provider',
+                            message: `确定删除 Provider「${p.name}」？`,
+                            confirmText: '删除',
+                            tone: 'danger',
+                          })) {
+                            deleteMut.mutate(p.id);
+                          }
+                        }}>
                         删除
                       </button>
                     </div>
