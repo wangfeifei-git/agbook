@@ -187,16 +187,19 @@ npm run dev:desktop
 
 ## 更换应用图标
 
-1. 准备一张 1024×1024 的方形 PNG（建议透明背景，macOS 会自动加圆角，**不要自己画圆角**）
-2. 覆盖到 `apps/desktop/src-tauri/icons/source.png`
-3. 重新生成全套平台图标：
+1. 准备原图，保存为 `apps/desktop/src-tauri/icons/raw-source.png`（方图即可，不必透明）。
+2. 生成 `source.png` 并打圆角/平台尺寸（**流程**：裁底部水印 → 整图**等比 contain** 缩进 1024 内接框 → 居中 → 超椭圆 + Dock 可见外缘，不需要抠亮度主体）：
    ```bash
-   npm run desktop:icons
+   # 需要 Python3 + Pillow + numpy
+   python3 -m venv /tmp/iconvenv && /tmp/iconvenv/bin/pip install Pillow numpy
+   /tmp/iconvenv/bin/python apps/desktop/scripts/make-app-icon.py
+   npm -w @agbook/desktop run icon:generate
    ```
-4. 提交 `source.png` + 所有重新生成的 `*.png / *.icns / *.ico / android/* / ios/*`
-5. 重打安装包（本地 `npm run desktop:build` 或推 tag 触发 CI）
+   右下「豆包」类水印需同时裁底、裁右：改 `CROP_BOTTOM_PX`、`CROP_RIGHT_PX`；把主图放大：改 `INNER_RATIO`（越大越满版）。单侧裁边会让画框中心与主体错开，脚本会在裁完后**按发光区域**再包一层正方形，把霓虹书**重新置中**。
+3. 提交 `raw-source.png`、`source.png` 及 `tauri icon` 生成的 `icons/*` 全量 diff。
+4. 重打安装包（`npm run desktop:build` 或推 tag）。
 
-> `scripts/make-source-icon.mjs` 默认在 `source.png` 已存在时跳过，不会覆盖你的真图标。要重新画那张蓝色占位图，跑 `node apps/desktop/scripts/make-source-icon.mjs --force`。
+> 占位用蓝色渐变仍由 `make-source-icon.mjs` 生成；`source.png` 已存在时它不会覆盖。`npm run desktop:icons` 等价于 `icon:source`（可能跳过）+ `icon:generate`。
 
 ## 首次使用
 

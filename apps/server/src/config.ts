@@ -16,7 +16,18 @@ export const DATA_DIR = process.env.AGBOOK_DATA_DIR
 
 export const DB_FILE = path.join(DATA_DIR, 'agbook.sqlite');
 export const PROJECTS_DIR = path.join(DATA_DIR, 'projects');
-export const PORT = Number(process.env.AGBOOK_PORT || 8787);
+// Port selection:
+// - Unset / empty  -> 8787 (dev-friendly stable default)
+// - "0"            -> ephemeral port chosen by the OS (used by the packaged
+//                     desktop build to avoid colliding with user processes);
+//                     the real port is reported via AGBOOK_READY_URL on stdout
+// - explicit value -> used as-is
+export const PORT = (() => {
+  const raw = process.env.AGBOOK_PORT;
+  if (raw == null || raw === '') return 8787;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : 8787;
+})();
 export const HOST = process.env.AGBOOK_HOST || '127.0.0.1';
 
 export function ensureDirs() {

@@ -7,18 +7,23 @@ import type {
 
 // When the frontend runs inside the packaged Tauri app the page is served
 // from a custom tauri:// origin and relative `/api/...` URLs won't reach the
-// Node sidecar. We detect that case and prefix an absolute address. During
-// browser/dev mode we keep the relative path so Vite's proxy keeps working.
+// Node sidecar. The Rust host picks an ephemeral port for the sidecar at
+// launch and injects `window.__AGBOOK_API_BASE__` via an initialization
+// script *before* any app code runs, so the only job here is to honour it.
+// In browser/dev mode we keep the relative path so Vite's proxy handles it.
 function resolveApiBase(): string {
   if (typeof window === 'undefined') return '';
   const injected = (window as any).__AGBOOK_API_BASE__;
   if (typeof injected === 'string' && injected.length > 0) return injected;
   const { protocol, hostname } = window.location;
   // Tauri v2 serves the webview from `tauri://localhost` on macOS/Linux and
-  // from `http://tauri.localhost` on Windows; in either case the origin does
-  // not match the Node sidecar's 127.0.0.1:8787 and we need an absolute URL.
+  // from `http://tauri.localhost` on Windows. If we hit this branch it means
+  // the Rust side failed to inject the real URL — surface it loudly instead
+  // of silently pointing at a stale hardcoded port.
   if (protocol.startsWith('tauri') || hostname === 'tauri.localhost') {
-    return 'http://127.0.0.1:8787';
+    // eslint-disable-next-line no-console
+    console.error('[agbook] __AGBOOK_API_BASE__ was not injected; API calls will likely fail.');
+    return '';
   }
   return '';
 }

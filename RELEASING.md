@@ -102,6 +102,54 @@ gh release download v0.1.1 --dir installers
 
 ---
 
+## 运行环境依赖
+
+打包后大部分依赖都已经内嵌进安装包（Node 运行时、`better-sqlite3`、前端资源、sidecar），但有两项仍然跟用户机器相关：
+
+### 1. WebView2（仅 Windows）
+
+Windows 版依赖系统上的 WebView2 Runtime：
+
+- Win 11、近两年更新过的 Win 10 系统自带，不需要额外安装
+- 老版本 Win 10 / 精简版系统可能没装，首次启动会失败
+
+当前 `apps/desktop/src-tauri/tauri.conf.json` 里配置了：
+
+```json
+"bundle": {
+  "windows": {
+    "webviewInstallMode": { "type": "downloadBootstrapper" }
+  }
+}
+```
+
+MSI/NSIS 安装过程中会自动调 Microsoft 官方 bootstrapper 下载 WebView2，安装机**需要联网**。若目标用户在受限网络，改成以下模式任选其一：
+
+| type | 安装包体积 | 安装时联网 | 说明 |
+|---|---|---|---|
+| `downloadBootstrapper` (当前) | 最小 | 需要 | 安装时拉官方 bootstrapper，再拉 runtime |
+| `embedBootstrapper` | +\~1.3 MB | 需要（只拉 runtime） | bootstrapper 本身嵌进安装包，少一次下载 |
+| `offlineInstaller` | +\~150 MB | 不需要 | 整个 WebView2 runtime 直接嵌入安装包 |
+| `skip` | 最小 | — | 完全不管，用户自己装 |
+
+### 2. 动态端口
+
+Sidecar 启动时把 `AGBOOK_PORT=0` 传给 Node 服务，让内核分配一个空闲端口。Node 端在 Fastify 就绪后读取 `server.address().port` 把真实地址打到 stdout：
+
+```
+AGBOOK_READY_URL=http://127.0.0.1:54213
+```
+
+Rust 端从 sidecar 的 stdout 抓这一行，用 Tauri 的 `initialization_script` 注入到 webview：
+
+```js
+Object.defineProperty(window, '__AGBOOK_API_BASE__', { value: 'http://127.0.0.1:54213', ... });
+```
+
+前端 `apps/web/src/api.ts` 的 `resolveApiBase()` 优先读这个变量，所以用户机器上即便 8787 被占也不会冲突。15 秒内如果 sidecar 没打印 ready 行，Rust 会 panic 退出（避免"窗口开着但一直连不上 API"这种静默故障）。
+
+---
+
 ## Runner 矩阵说明
 
 ```yaml

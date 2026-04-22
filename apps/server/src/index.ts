@@ -33,7 +33,15 @@ async function main() {
 
   try {
     await app.listen({ port: PORT, host: HOST });
-    const url = `http://${HOST}:${PORT}`;
+    // When PORT=0 we asked the OS to pick a free ephemeral port; read the
+    // real one back off the underlying net server so the URL we report is
+    // actually reachable.
+    const addr = app.server.address();
+    const boundPort =
+      addr && typeof addr === 'object' && typeof addr.port === 'number'
+        ? addr.port
+        : PORT;
+    const url = `http://${HOST}:${boundPort}`;
     app.log.info(`agbook server ready at ${url}`);
     // Machine-readable ready marker consumed by the Tauri sidecar host.
     // Keep this line format stable — the desktop Rust code greps for it.

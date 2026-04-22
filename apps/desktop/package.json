@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "icon:source": "node scripts/make-source-icon.mjs",
+    "icon:mask": "python3 scripts/make-app-icon.py",
     "icon:generate": "tauri icon src-tauri/icons/source.png",
     "icon:all": "npm run icon:source && npm run icon:generate",
     "dev": "tauri dev",
